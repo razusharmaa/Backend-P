@@ -30,7 +30,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // Step 3 : Check if the user exists : username, email
 
-  const existedUser= User.findOne({
+  const existedUser= await User.findOne({
     $or: [
       {username},
       {email}
@@ -44,7 +44,14 @@ const registerUser = asyncHandler(async (req, res) => {
   // Step 4 : Check for the images, check for avatar
 
   const AvatarLocalPath= req.files?.avatar[0]?.path
-  const CoverLocalPath= req.files?.cover[0]?.path
+  // const CoverLocalPath= req.files?.coverImage[0]?.path
+
+  let CoverLocalPath;
+  if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length>0){
+    CoverLocalPath=req.files.coverImage[0].path;
+  }
+
+  console.log(CoverLocalPath);
 
   if (!AvatarLocalPath) {
     throw new ApiError(400,'Avatar photo is required')
@@ -53,10 +60,12 @@ const registerUser = asyncHandler(async (req, res) => {
   // Step 5: Upload them to cloudinary , avatar
 
   const Avatar= await uploadOnCloudinary(AvatarLocalPath)
-  const Cover= await uploadOnCloudinary(CoverLocalPath)
+   const Cover= await uploadOnCloudinary(CoverLocalPath) 
+
+  console.log(Avatar);
 
   if (!Avatar) {
-    throw new ApiError(400,'Avatar photo is required')
+    throw new ApiError(400,'Avatar file  is required')
   }
 
   // Step 6:  Create user object - create entry in db
@@ -67,7 +76,7 @@ const registerUser = asyncHandler(async (req, res) => {
     username:username.toLowerCase(),
     password,
     avatar:Avatar.url,
-    cover:Cover?.url|| ""
+    coverImage:Cover?.url|| ""
   })
 
   // Step 7: Remove password and refresh token field from response
@@ -81,7 +90,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   // Last Step: Return response
-  return response.status(201).json(
+  return res.status(201).json(
     new ApiResponse(200,createdUser,'User registered successfully')
   )
 
