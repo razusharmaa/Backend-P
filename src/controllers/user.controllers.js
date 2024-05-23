@@ -7,17 +7,23 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 const GenerateRefreshAccessToken = async (userId) => {
   try {
     const user = await User.findById(userId);
-    const AccessToken = user.generateAccessToken();
-    const RefreshToken = user.generateRefreshToken();
-    user.refreshToken = RefreshToken;
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+    
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+    user.refreshToken = refreshToken;
 
-    await user.save({ validitionBeforeSave: false });
+    await user.save({ validateBeforeSave: false });
 
-    return { AccessToken, RefreshToken };
+    return { accessToken, refreshToken };
   } catch (error) {
-    throw new ApiError(500, "Something went wrong while generating refresh");
+    console.error('Error generating tokens:', error);
+    throw new ApiError(500, "Something went wrong while generating tokens");
   }
 };
+
 
 const registerUser = asyncHandler(async (req, res) => {
   // Get the user details from frontend
@@ -124,22 +130,21 @@ const loginUser = asyncHandler(async (req, res) => {
   // Return response
 
   // Step 1 : Get the user details from frontend
-  const { email, username, password } = req.body;
+  const {email ,username, password } = req.body;
+  console.log(email || username);
 
   // Step 2 : Validations - not empty
-  if (
-    [username || email, password].some((field) => {
-      field?.trim() === "";
-    })
-  ) {
+ 
+  if (![email || username, password].every(Boolean)) {
     throw new ApiError(400, "All fields are required");
   }
+  
 
   // Step 3 : Check the user exist in database
-  const userCheck = await User.findOne({
+  const user = await User.findOne({
     $or: [{ email }, { username }],
   });
-  if (!userCheck) {
+  if (!user) {
     throw new ApiError(404, "User doesn't exist");
   }
   // Step 4 : Check for the password
@@ -176,24 +181,26 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
- await User.findByIdAndUpdate(req.user._id, {
-    $set: {
-      refreshToken: undefined,
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined,
+      },
     },
-  },
-  {new:true}
-);
+    { new: true }
+  );
 
-const options={
-  httpOnly:true,
-  secure:true
-}
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
 
   return res
-  .status(200)
-  .clearCookie("access_token",options)
-  .clearCookie("refresh_token",options)
-  .status(new ApiResponse(200,"User Logout Successfully"))
+    .status(200)
+    .clearCookie("access_token", options)
+    .clearCookie("refresh_token", options)
+    .json(new ApiResponse(200, "User Logout Successfully"));
 });
 
 export { registerUser, loginUser, logoutUser };
